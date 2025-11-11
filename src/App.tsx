@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 
 // ------------------ Types ------------------
 
@@ -182,12 +182,86 @@ function Tile({
   );
 }
 
+// ------------------ Modal ------------------
+
+function Modal({
+  open,
+  onClose,
+  children,
+  title,
+}: {
+  open: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+  title: string;
+}) {
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    if (open) document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      aria-modal
+      role="dialog"
+    >
+      <div
+        ref={overlayRef}
+        className="absolute inset-0 bg-black/40"
+        onClick={(e) => {
+          if (e.target === overlayRef.current) onClose();
+        }}
+      />
+      <div className="relative z-10 w-[95vw] max-w-xl rounded-2xl bg-white shadow-2xl border border-slate-200">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+          <h3 className="font-semibold text-slate-900">{title}</h3>
+          <button
+            onClick={onClose}
+            className="rounded-md p-1.5 hover:bg-slate-100"
+            aria-label="Close"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M6 6l12 12M18 6L6 18"
+                stroke="#0f172a"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
+        <div className="p-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 // ------------------ Main Component ------------------
 
 export default function CurtainEstimator() {
   const [widthStr, setWidthStr] = useState("200");
   const [heightStr, setHeightStr] = useState("300");
   const [product, setProduct] = useState<ProductKey>("sheer");
+
+  // Visit/Quote Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [message, setMessage] = useState("");
+  const [preferred, setPreferred] = useState("WhatsApp");
+  const [rushVisit, setRushVisit] = useState(true);
+
+  // Local editable fields inside modal (so user can tweak before sending)
+  const [mWidthStr, setMWidthStr] = useState(widthStr);
+  const [mHeightStr, setMHeightStr] = useState(heightStr);
+  const [mProduct, setMProduct] = useState<ProductKey>(product);
 
   const toNum = (s: string) => {
     const n = parseFloat(s);
@@ -203,7 +277,7 @@ export default function CurtainEstimator() {
   );
   const areaSqM = useMemo(() => +(wM * hM).toFixed(2), [wM, hM]);
 
-  // --- NEW helpers for the easy-to-understand area block ---
+  // --- helpers for the easy-to-understand area block ---
   const areaSqCm = useMemo(
     () => Math.round(Math.max(0, widthCm) * Math.max(0, heightCm)),
     [widthCm, heightCm]
@@ -222,6 +296,53 @@ export default function CurtainEstimator() {
   ];
 
   const sanitize = (v: string) => v.replace(/[^0-9.]/g, "");
+
+  // Build default message whenever modal opens
+  useEffect(() => {
+    if (!modalOpen) return;
+    const prod = PRODUCTS.find((p) => p.key === mProduct)!;
+    const w = toNum(mWidthStr);
+    const h = toNum(mHeightStr);
+    const areaM2 = +((Math.max(0, w) / 100) * (Math.max(0, h) / 100)).toFixed(
+      2
+    );
+    const market = Math.round(areaM2 * prod.ratePerSqM);
+    const ours = Math.round(market * 0.6);
+    setMessage(
+      `Hi! I'd like a free visit for ${prod.name}. Size: ${mWidthStr}cm × ${mHeightStr}cm (~${areaM2} m²). Your price estimate: AED ${ours}.`
+    );
+  }, [modalOpen, mProduct, mWidthStr, mHeightStr]);
+
+  const canSubmit = name.trim().length > 1 && /\d{5,}/.test(phone);
+
+  function openModal() {
+    setMWidthStr(widthStr);
+    setMHeightStr(heightStr);
+    setMProduct(product);
+    setModalOpen(true);
+  }
+
+  function submitRequest() {
+    // Apply edits from modal back to the main estimator
+    setWidthStr(mWidthStr);
+    setHeightStr(mHeightStr);
+    setProduct(mProduct);
+
+    const payload = {
+      name,
+      phone,
+      preferred,
+      rushVisit,
+      message,
+      product: mProduct,
+      widthCm: mWidthStr,
+      heightCm: mHeightStr,
+    };
+
+    console.log("Booking payload", payload);
+    alert("Thanks! We'll be in touch shortly via " + preferred + ".");
+    setModalOpen(false);
+  }
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-b from-white to-slate-50 text-slate-900 overflow-x-hidden">
@@ -255,7 +376,10 @@ export default function CurtainEstimator() {
           </div>
           <div className="font-bold text-base tracking-tight">CurtainCraft</div>
         </div>
-        <button className="bg-emerald-500 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-600 text-sm">
+        <button
+          className="bg-emerald-500 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-600 text-sm"
+          onClick={openModal}
+        >
           Book a Free Visit
         </button>
       </header>
@@ -307,13 +431,12 @@ export default function CurtainEstimator() {
               </label>
             </div>
 
-            {/* Replaced Area block with the requested easy-to-understand version */}
+            {/* Area (easy to understand) */}
             <div className="justify-self-start sm:justify-self-end text-left sm:text-right order-3 sm:order-3">
               <div className="text-[11px] font-semibold text-slate-500">
                 Area
               </div>
               <div className="text-sm font-semibold">
-                {/* {widthStr || "0"} × {heightStr || "0"} ={" "} */}
                 {areaSqCm.toLocaleString()} sq cm ({fmt(areaSqM)} sq mtr)
               </div>
               <div className="text-[11px] text-slate-500">
@@ -341,11 +464,7 @@ export default function CurtainEstimator() {
 
           <div className="mt-2 -mx-1 sm:mx-0">
             <div
-              className="
-                iosMomentum
-                grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2
-                overflow-y-auto h-[calc(100dvh-14rem)] pr-1 pb-6
-              "
+              className="iosMomentum grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 overflow-y-auto h-[calc(100dvh-14rem)] pr-1 pb-6"
               style={{
                 WebkitOverflowScrolling: "touch",
                 scrollBehavior: "smooth",
@@ -375,6 +494,211 @@ export default function CurtainEstimator() {
           </div>
         </section>
       </main>
+
+      {/* Booking Modal */}
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Free Home Visit"
+      >
+        <div className="grid gap-4">
+          {/* Selected item (editable) */}
+          <div className="rounded-lg border border-slate-200 p-3">
+            <div className="text-[11px] font-semibold text-slate-500 mb-2">
+              Selected Item
+            </div>
+            <div className="flex items-start gap-3">
+              <img
+                src={PRODUCTS.find((p) => p.key === mProduct)!.image}
+                alt={PRODUCTS.find((p) => p.key === mProduct)!.name}
+                className="w-20 h-16 rounded-md object-cover"
+              />
+              <div className="flex-1 grid sm:grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    Product
+                  </span>
+                  <select
+                    className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                    value={mProduct}
+                    onChange={(e) => setMProduct(e.target.value as ProductKey)}
+                  >
+                    {PRODUCTS.map((p) => (
+                      <option key={p.key} value={p.key}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    Width (cm)
+                  </span>
+                  <input
+                    className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                    type="text"
+                    value={mWidthStr}
+                    onChange={(e) =>
+                      setMWidthStr(e.target.value.replace(/[^0-9.]/g, ""))
+                    }
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    Height (cm)
+                  </span>
+                  <input
+                    className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                    type="text"
+                    value={mHeightStr}
+                    onChange={(e) =>
+                      setMHeightStr(e.target.value.replace(/[^0-9.]/g, ""))
+                    }
+                  />
+                </label>
+                <div className="text-sm text-slate-600 self-end">
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    Quick Est.
+                  </span>{" "}
+                  <span className="font-semibold">
+                    {(() => {
+                      const prod = PRODUCTS.find((p) => p.key === mProduct)!;
+                      const w = toNum(mWidthStr);
+                      const h = toNum(mHeightStr);
+                      const areaM2 = +(
+                        (Math.max(0, w) / 100) *
+                        (Math.max(0, h) / 100)
+                      ).toFixed(2);
+                      const market = Math.round(areaM2 * prod.ratePerSqM);
+                      const ours = Math.round(market * 0.6);
+                      return `AED ${ours} (~${areaM2} m²)`;
+                    })()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Contact details */}
+          <div className="grid sm:grid-cols-2 gap-3">
+            <label className="block">
+              <span className="text-[11px] font-semibold text-slate-500">
+                Name
+              </span>
+              <input
+                className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                type="text"
+                placeholder="Your full name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </label>
+            <label className="block">
+              <span className="text-[11px] font-semibold text-slate-500">
+                Phone (WhatsApp)
+              </span>
+              <input
+                className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                type="tel"
+                placeholder="05xxxxxxxx"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+            </label>
+            <label className="block sm:col-span-2">
+              <span className="text-[11px] font-semibold text-slate-500">
+                Message
+              </span>
+              <textarea
+                className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm min-h-[80px]"
+                placeholder="Any notes or timing preferences?"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+              />
+            </label>
+          </div>
+
+          {/* Options */}
+          <div className="grid sm:grid-cols-2 gap-3">
+            <label className="block">
+              <span className="text-[11px] font-semibold text-slate-500">
+                Preferred Contact
+              </span>
+              <select
+                className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                value={preferred}
+                onChange={(e) => setPreferred(e.target.value)}
+              >
+                <option>WhatsApp</option>
+                <option>Call</option>
+                <option>SMS</option>
+                <option>Email</option>
+              </select>
+            </label>
+            <label className="inline-flex items-center gap-2 mt-6">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-slate-300"
+                checked={rushVisit}
+                onChange={(e) => setRushVisit(e.target.checked)}
+              />
+              <span className="text-sm text-slate-700">
+                Request same-day visit if available
+              </span>
+            </label>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button
+              onClick={() => setModalOpen(false)}
+              className="px-3 py-1.5 rounded-lg border border-slate-300 text-sm hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                if (canSubmit) {
+                  setWidthStr(mWidthStr);
+                  setHeightStr(mHeightStr);
+                  setProduct(mProduct);
+
+                  const payload = {
+                    name,
+                    phone,
+                    preferred,
+                    rushVisit,
+                    message,
+                    product: mProduct,
+                    widthCm: mWidthStr,
+                    heightCm: mHeightStr,
+                  };
+
+                  console.log("Booking payload", payload);
+
+                  const encodedMsg = encodeURIComponent(
+                    message +
+                      `\nName: ${name}\nPhone: ${phone}\nPreferred: ${preferred}`
+                  );
+                  const whatsappURL = `https://wa.me/97156778999?text=${encodedMsg}`;
+                  window.open(whatsappURL, "_blank");
+
+                  alert("Thanks! Redirecting you to WhatsApp chat.");
+                  setModalOpen(false);
+                }
+              }}
+              disabled={!canSubmit}
+              className={`px-3 py-1.5 rounded-lg text-sm text-white ${
+                canSubmit
+                  ? "bg-emerald-600 hover:bg-emerald-700"
+                  : "bg-emerald-300 cursor-not-allowed"
+              }`}
+            >
+              Submit Request
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
