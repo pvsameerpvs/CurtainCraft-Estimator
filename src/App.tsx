@@ -1,11 +1,4 @@
-import { useMemo, useState } from "react";
-
-/**
- * CurtainCraft – Compact Estimator (Emerald/Slate)
- * MOBILE FIX: No forced heights anywhere. The page flows naturally and scrolls.
- * DESKTOP: Still clean and compact without locking to the viewport height.
- * INPUTS: Allow blank values (backspace to empty) with safe parsing.
- */
+import { useMemo, useState, useEffect, useRef } from "react";
 
 type ProductKey =
   | "sheer"
@@ -23,7 +16,6 @@ type Product = {
   key: ProductKey;
   name: string;
   blurb: string;
-  /** Baseline AED per m², derived from your reference prices/sizes */
   ratePerSqM: number;
   image: string;
 };
@@ -33,7 +25,7 @@ const PRODUCTS: Product[] = [
     key: "sheer",
     name: "Sheer Curtains",
     blurb: "Airy, light-filtering",
-    ratePerSqM: 533 / 6, // 2m x 3m ref
+    ratePerSqM: 533 / 6,
     image:
       "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?q=80&w=1200&auto=format&fit=crop",
   },
@@ -57,7 +49,7 @@ const PRODUCTS: Product[] = [
     key: "roller_premium",
     name: "Roller Blinds Premium",
     blurb: "Minimal & modern",
-    ratePerSqM: 561 / 3, // 1.5m x 2m ref
+    ratePerSqM: 561 / 3,
     image:
       "https://images.unsplash.com/photo-1554995207-c18c203602cb?q=80&w=1200&auto=format&fit=crop",
   },
@@ -90,26 +82,25 @@ const PRODUCTS: Product[] = [
     name: "Wave Style Sheer Curtains",
     blurb: "Soft ripple finish",
     ratePerSqM: 752 / 6,
-    image:
-      "https://images.unsplash.com/photo-1556912998-6a321d6f6143?q=80&w=1200&auto=format&fit=crop",
+    image: "https://picsum.photos/id/1015/1200/800",
   },
   {
     key: "wave_blackout",
     name: "Wave Style Blackout Curtains",
     blurb: "Elegant & darkening",
     ratePerSqM: 1162 / 6,
-    image:
-      "https://images.unsplash.com/photo-1505692794403-34cb0b54c5e1?q=80&w=1200&auto=format&fit=crop",
+    image: "https://picsum.photos/id/1016/1200/800",
   },
   {
     key: "wave_duo",
     name: "Wave Style Sheer & Blackout",
     blurb: "Best of both",
     ratePerSqM: 1855 / 6,
-    image:
-      "https://images.unsplash.com/photo-1600585154356-1c9c9c79c2c4?q=80&w=1200&auto=format&fit=crop",
+    image: "https://picsum.photos/id/1018/1200/800",
   },
 ];
+
+// ------------------ Small UI Atoms ------------------
 
 function CompactPrice({
   label,
@@ -126,7 +117,7 @@ function CompactPrice({
     <div className="leading-tight">
       <div className="text-[10px] text-slate-500">{label}</div>
       <div
-        className={`text-sm font-semibold ${
+        className={`text-[13px] font-semibold ${
           highlight ? "text-emerald-600" : "text-slate-900"
         }`}
       >
@@ -156,26 +147,23 @@ function Tile({
   return (
     <button
       onClick={onClick}
-      className={`group rounded-lg text-left w-full border transition-all overflow-hidden bg-white ${
+      className={`group rounded-xl text-left w-full border transition-all overflow-hidden bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
         active
-          ? "border-emerald-400 shadow-[0_6px_16px_rgba(16,185,129,0.12)]"
-          : "border-slate-200 hover:border-slate-300"
+          ? "border-emerald-400 shadow-[0_6px_16px_rgba(16,185,129,0.12)] scale-[1.01]"
+          : "border-slate-200 hover:border-emerald-300 active:scale-[0.98]"
       }`}
     >
-      {/* Mobile: image left; Desktop: image on top */}
-      <div className="flex flex-row md:flex-col items-stretch md:items-stretch gap-2 md:gap-3 px-2 py-2">
-        {/* Image */}
-        <div className="w-20 h-20 md:w-full md:h-24 rounded-md overflow-hidden bg-slate-100 shrink-0">
+      <div className="flex flex-row md:flex-col items-stretch gap-2 md:gap-3 p-2">
+        <div className="w-16 h-16 md:w-full md:h-24 rounded-lg overflow-hidden bg-slate-100 shrink-0">
           <img
             src={image}
             alt={title}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
           />
         </div>
 
-        {/* Content */}
-        <div className="flex-1 px-1 md:px-2 min-w-0">
-          <div className="font-semibold text-slate-900 text-xs md:text-sm truncate">
+        <div className="flex-1 px-0.5 md:px-1 min-w-0">
+          <div className="font-semibold text-slate-900 text-[12px] md:text-sm truncate">
             {title}
           </div>
           <div className="text-[11px] text-slate-500 truncate">{subtitle}</div>
@@ -190,10 +178,11 @@ function Tile({
   );
 }
 
+// ------------------ Main Component ------------------
+
 export default function CurtainEstimator() {
-  // Keep inputs as strings so backspace can produce "" (blank) instead of 0.
-  const [widthStr, setWidthStr] = useState<string>("200"); // cm
-  const [heightStr, setHeightStr] = useState<string>("300"); // cm
+  const [widthStr, setWidthStr] = useState("200");
+  const [heightStr, setHeightStr] = useState("300");
   const [product, setProduct] = useState<ProductKey>("sheer");
 
   const toNum = (s: string) => {
@@ -203,33 +192,16 @@ export default function CurtainEstimator() {
 
   const widthCm = useMemo(() => toNum(widthStr), [widthStr]);
   const heightCm = useMemo(() => toNum(heightStr), [heightStr]);
-
   const wM = useMemo(() => +(Math.max(0, widthCm) / 100).toFixed(2), [widthCm]);
   const hM = useMemo(
     () => +(Math.max(0, heightCm) / 100).toFixed(2),
     [heightCm]
   );
   const areaSqM = useMemo(() => +(wM * hM).toFixed(2), [wM, hM]);
-  const areaSqCm = useMemo(
-    () => Math.round(Math.max(0, widthCm) * Math.max(0, heightCm)),
-    [widthCm, heightCm]
-  );
 
-  const activeProduct = useMemo(
-    () => PRODUCTS.find((p) => p.key === product)!,
-    [product]
-  );
-
-  const fmt = (n: number, d: number = 2) =>
-    new Intl.NumberFormat(undefined, { maximumFractionDigits: d }).format(n);
-  const marketEstimate = useMemo(
-    () => Math.round(areaSqM * activeProduct.ratePerSqM),
-    [areaSqM, activeProduct]
-  );
-  const yourPrice = useMemo(
-    () => Math.round(marketEstimate * 0.6),
-    [marketEstimate]
-  );
+  const activeProduct = PRODUCTS.find((p) => p.key === product)!;
+  const marketEstimate = Math.round(areaSqM * activeProduct.ratePerSqM);
+  const yourPrice = Math.round(marketEstimate * 0.6);
 
   const offers = [
     "Free home visit & measuring",
@@ -237,12 +209,15 @@ export default function CurtainEstimator() {
     "Installation included on orders over AED 1500",
   ];
 
-  // Helpers to keep numeric-only strings for inputs, while allowing blank
   const sanitize = (v: string) => v.replace(/[^0-9.]/g, "");
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-b from-white to-slate-50 text-slate-900">
-      {/* Tiny sliding offer bar */}
+    <div className="min-h-screen w-full bg-gradient-to-b from-white to-slate-50 text-slate-900 overflow-x-hidden">
+      <style>{`
+        .iosMomentum { -webkit-overflow-scrolling: touch; }
+      `}</style>
+
+      {/* Offer bar */}
       <div className="h-7 bg-emerald-50 border-b border-emerald-100 text-emerald-700 text-[11px] flex items-center overflow-hidden">
         <div className="whitespace-nowrap animate-[marquee_18s_linear_infinite] px-4">
           {offers.concat(offers).map((msg, i) => (
@@ -252,14 +227,8 @@ export default function CurtainEstimator() {
           ))}
         </div>
       </div>
-      <style>{`
-        @keyframes marquee {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-      `}</style>
 
-      {/* Header (compact, not sticky to let page scroll naturally on mobile) */}
+      {/* Header */}
       <header className="h-12 px-3 sm:px-5 flex items-center justify-between bg-white border-b border-slate-200">
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-lg bg-emerald-100 grid place-items-center">
@@ -273,17 +242,15 @@ export default function CurtainEstimator() {
           </div>
           <div className="font-bold text-base tracking-tight">CurtainCraft</div>
         </div>
-        <button className="bg-emerald-500 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-600 transition text-sm">
+        <button className="bg-emerald-500 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-600 text-sm">
           Book a Free Visit
         </button>
       </header>
 
-      {/* Main layout: natural flow on mobile; roomy container on larger screens */}
-      <main className="mx-auto max-w-7xl p-3 space-y-2">
-        {/* Controls row */}
-        <div className="rounded-lg border border-slate-200 bg-white p-2">
+      <main className="mx-auto max-w-7xl p-3 space-y-2 pb-10">
+        {/* Controls */}
+        <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
-            {/* Presets */}
             <div className="flex gap-2 order-2 sm:order-1">
               {[
                 { label: "1.5×2m", w: "150", h: "200" },
@@ -302,92 +269,93 @@ export default function CurtainEstimator() {
               ))}
             </div>
 
-            {/* Inputs */}
             <div className="grid grid-cols-2 gap-2 order-1 sm:order-2">
               <label className="block">
                 <span className="text-[11px] font-semibold text-slate-500">
                   Width
                 </span>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <input
-                    className="w-full rounded-md border border-slate-300 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    placeholder="cm"
-                    value={widthStr}
-                    onChange={(e) => setWidthStr(sanitize(e.target.value))}
-                  />
-                  <span className="text-[11px] text-slate-500">cm</span>
-                </div>
+                <input
+                  className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
+                  type="text"
+                  value={widthStr}
+                  onChange={(e) => setWidthStr(sanitize(e.target.value))}
+                />
               </label>
               <label className="block">
                 <span className="text-[11px] font-semibold text-slate-500">
                   Height
                 </span>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <input
-                    className="w-full rounded-md border border-slate-300 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    placeholder="cm"
-                    value={heightStr}
-                    onChange={(e) => setHeightStr(sanitize(e.target.value))}
-                  />
-                  <span className="text-[11px] text-slate-500">cm</span>
-                </div>
+                <input
+                  className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
+                  type="text"
+                  value={heightStr}
+                  onChange={(e) => setHeightStr(sanitize(e.target.value))}
+                />
               </label>
             </div>
 
-            {/* Area summary (plain language) */}
-            <div className="justify-self-start sm:justify-self-end text-left sm:text-right order-3 sm:order-3">
+            <div className="text-right order-3 sm:order-3">
               <div className="text-[11px] font-semibold text-slate-500">
-                Area (easy to understand)
+                Area
               </div>
               <div className="text-sm font-semibold">
-                {widthStr || "0"} × {heightStr || "0"} ={" "}
-                {areaSqCm.toLocaleString()} sq cm ({fmt(areaSqM)} sq mtr)
-              </div>
-              <div className="text-[11px] text-slate-500">
-                In meters: {fmt(wM)} m × {fmt(hM)} m
+                {widthStr || "0"} × {heightStr || "0"} cm = {areaSqM} m²
               </div>
             </div>
           </div>
         </div>
 
-        {/* Selected summary row (very compact) */}
-        <div className="rounded-lg border border-slate-200 bg-white p-2 grid grid-cols-[1fr_auto_auto] items-center gap-2">
-          <div className="truncate">
+        {/* Summary */}
+        <div className="rounded-xl border border-slate-200 bg-white p-2 grid grid-cols-[1fr_auto_auto] items-center gap-2 shadow-sm">
+          <div>
             <div className="text-[11px] text-slate-500">Selected</div>
-            <div className="text-sm font-semibold truncate">
-              {activeProduct.name}
-            </div>
+            <div className="text-sm font-semibold">{activeProduct.name}</div>
           </div>
           <CompactPrice label="Market" value={marketEstimate} />
           <CompactPrice label="Your price (-40%)" value={yourPrice} highlight />
         </div>
 
-        {/* Product grid – NO fixed height, fully responsive, page scrolls naturally */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-          {PRODUCTS.map((p) => {
-            const market = Math.round(areaSqM * p.ratePerSqM);
-            const ours = Math.round(market * 0.6);
-            const isActive = p.key === product;
-            return (
-              <Tile
-                key={p.key}
-                active={isActive}
-                title={p.name}
-                subtitle={p.blurb}
-                image={p.image}
-                market={market}
-                ours={ours}
-                onClick={() => setProduct(p.key)}
-              />
-            );
-          })}
-        </div>
+        {/* Product grid */}
+        <section className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+          <div className="text-[11px] text-slate-500 font-semibold px-0.5">
+            Browse products
+          </div>
+
+          <div className="mt-2 -mx-1 sm:mx-0">
+            <div
+              className="
+                iosMomentum
+                grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2
+                overflow-y-auto h-[calc(100dvh-14rem)] pr-1 pb-6
+              "
+              style={{
+                WebkitOverflowScrolling: "touch",
+                scrollBehavior: "smooth",
+                paddingBottom:
+                  "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)",
+              }}
+            >
+              {PRODUCTS.map((p) => {
+                const market = Math.round(areaSqM * p.ratePerSqM);
+                const ours = Math.round(market * 0.6);
+                const isActive = p.key === product;
+                return (
+                  <div key={p.key} className="min-h-[100px]">
+                    <Tile
+                      active={isActive}
+                      title={p.name}
+                      subtitle={p.blurb}
+                      image={p.image}
+                      market={market}
+                      ours={ours}
+                      onClick={() => setProduct(p.key)}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
       </main>
     </div>
   );
