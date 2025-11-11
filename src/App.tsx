@@ -201,14 +201,23 @@ function Modal({
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
     }
-    if (open) document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    if (open) {
+      document.addEventListener("keydown", onKey);
+      // prevent background scroll when modal is open
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.removeEventListener("keydown", onKey);
+        document.body.style.overflow = prev;
+      };
+    }
+    return () => {};
   }, [open, onClose]);
 
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
       aria-modal
       role="dialog"
     >
@@ -219,8 +228,9 @@ function Modal({
           if (e.target === overlayRef.current) onClose();
         }}
       />
-      <div className="relative z-10 w-[95vw] max-w-xl rounded-2xl bg-white shadow-2xl border border-slate-200">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+      {/* Panel */}
+      <div className="relative z-10 w-full max-w-xl sm:max-w-lg md:max-w-xl rounded-2xl bg-white shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 sticky top-0 bg-white rounded-t-2xl">
           <h3 className="font-semibold text-slate-900">{title}</h3>
           <button
             onClick={onClose}
@@ -237,7 +247,7 @@ function Modal({
             </svg>
           </button>
         </div>
-        <div className="p-4">{children}</div>
+        <div className="p-4 overflow-y-auto flex-1 iosMomentum">{children}</div>
       </div>
     </div>
   );
@@ -340,7 +350,15 @@ export default function CurtainEstimator() {
     };
 
     console.log("Booking payload", payload);
-    alert("Thanks! We'll be in touch shortly via " + preferred + ".");
+
+    // WhatsApp deep-link to business number (no leading 0 after country code)
+    const encodedMsg = encodeURIComponent(
+      message + `\nName: ${name}\nPhone: ${phone}\nPreferred: ${preferred}`
+    );
+    const whatsappURL = `https://wa.me/97156778999?text=${encodedMsg}`;
+    window.open(whatsappURL, "_blank");
+
+    alert("Thanks! Redirecting you to WhatsApp chat.");
     setModalOpen(false);
   }
 
@@ -631,8 +649,8 @@ export default function CurtainEstimator() {
               >
                 <option>WhatsApp</option>
                 <option>Call</option>
-                <option>SMS</option>
-                <option>Email</option>
+                {/* <option>SMS</option>
+                <option>Email</option> */}
               </select>
             </label>
             <label className="inline-flex items-center gap-2 mt-6">
@@ -657,36 +675,7 @@ export default function CurtainEstimator() {
               Cancel
             </button>
             <button
-              onClick={() => {
-                if (canSubmit) {
-                  setWidthStr(mWidthStr);
-                  setHeightStr(mHeightStr);
-                  setProduct(mProduct);
-
-                  const payload = {
-                    name,
-                    phone,
-                    preferred,
-                    rushVisit,
-                    message,
-                    product: mProduct,
-                    widthCm: mWidthStr,
-                    heightCm: mHeightStr,
-                  };
-
-                  console.log("Booking payload", payload);
-
-                  const encodedMsg = encodeURIComponent(
-                    message +
-                      `\nName: ${name}\nPhone: ${phone}\nPreferred: ${preferred}`
-                  );
-                  const whatsappURL = `https://wa.me/97156778999?text=${encodedMsg}`;
-                  window.open(whatsappURL, "_blank");
-
-                  alert("Thanks! Redirecting you to WhatsApp chat.");
-                  setModalOpen(false);
-                }
-              }}
+              onClick={submitRequest}
               disabled={!canSubmit}
               className={`px-3 py-1.5 rounded-lg text-sm text-white ${
                 canSubmit
