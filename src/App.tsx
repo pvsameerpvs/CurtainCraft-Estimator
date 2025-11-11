@@ -1,4 +1,6 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState } from "react";
+
+// ------------------ Types ------------------
 
 type ProductKey =
   | "sheer"
@@ -19,6 +21,8 @@ type Product = {
   ratePerSqM: number;
   image: string;
 };
+
+// ------------------ Data ------------------
 
 const PRODUCTS: Product[] = [
   {
@@ -111,7 +115,7 @@ function CompactPrice({
   value: number;
   highlight?: boolean;
 }) {
-  const fmt = (n: number) =>
+  const fmtLocal = (n: number) =>
     new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(n);
   return (
     <div className="leading-tight">
@@ -121,7 +125,7 @@ function CompactPrice({
           highlight ? "text-emerald-600" : "text-slate-900"
         }`}
       >
-        AED {fmt(value)}
+        AED {fmtLocal(value)}
       </div>
     </div>
   );
@@ -199,6 +203,14 @@ export default function CurtainEstimator() {
   );
   const areaSqM = useMemo(() => +(wM * hM).toFixed(2), [wM, hM]);
 
+  // --- NEW helpers for the easy-to-understand area block ---
+  const areaSqCm = useMemo(
+    () => Math.round(Math.max(0, widthCm) * Math.max(0, heightCm)),
+    [widthCm, heightCm]
+  );
+  const fmt = (n: number) =>
+    new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(n);
+
   const activeProduct = PRODUCTS.find((p) => p.key === product)!;
   const marketEstimate = Math.round(areaSqM * activeProduct.ratePerSqM);
   const yourPrice = Math.round(marketEstimate * 0.6);
@@ -215,6 +227,7 @@ export default function CurtainEstimator() {
     <div className="min-h-screen w-full bg-gradient-to-b from-white to-slate-50 text-slate-900 overflow-x-hidden">
       <style>{`
         .iosMomentum { -webkit-overflow-scrolling: touch; }
+        @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
       `}</style>
 
       {/* Offer bar */}
@@ -294,12 +307,17 @@ export default function CurtainEstimator() {
               </label>
             </div>
 
-            <div className="text-right order-3 sm:order-3">
+            {/* Replaced Area block with the requested easy-to-understand version */}
+            <div className="justify-self-start sm:justify-self-end text-left sm:text-right order-3 sm:order-3">
               <div className="text-[11px] font-semibold text-slate-500">
                 Area
               </div>
               <div className="text-sm font-semibold">
-                {widthStr || "0"} × {heightStr || "0"} cm = {areaSqM} m²
+                {/* {widthStr || "0"} × {heightStr || "0"} ={" "} */}
+                {areaSqCm.toLocaleString()} sq cm ({fmt(areaSqM)} sq mtr)
+              </div>
+              <div className="text-[11px] text-slate-500">
+                In meters: {fmt(wM)} m × {fmt(hM)} m
               </div>
             </div>
           </div>
